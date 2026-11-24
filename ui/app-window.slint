@@ -1,15 +1,31 @@
-import { Button, HorizontalBox, VerticalBox } from "std-widgets.slint";
+import { Button, HorizontalBox, VerticalBox, AboutSlint, StandardButton } from "std-widgets.slint";
+
+export component AbtSlint inherits Window {
+    height: 175px;
+    AboutSlint {}
+}
 
 export component AppWindow inherits Window {
     title: @tr("PuyoPLN");
     min-width: 300px;
     min-height: 300px;
 
+    in property <image> plane_view;
+
+    callback display_about_slint();
+    callback load_project() -> bool;
+
     MenuBar {
         Menu {
             title: @tr("Project");
             MenuItem {
-                title: @tr("New Project");
+                title: @tr("Load Project");
+                activated => {
+                    if !root.load_project() {
+                        // TODO: This should be a popup.
+                        debug("Load failed");
+                    }
+                };
             }
         }
 
@@ -22,6 +38,10 @@ export component AppWindow inherits Window {
 
         Menu {
             title: @tr("About");
+            MenuItem {
+                title: @tr("About Slint");
+                activated => root.display_about_slint();
+            }
         }
     }
 
@@ -57,13 +77,87 @@ export component AppWindow inherits Window {
             }
         }
 
-        Button {
-            text: "plane editor";
-            clicked => {
+        Rectangle {
+            clip: true;
+
+            plane-area := TouchArea {
+                property<float> zoom: 1.0;
+                property<bool> middle_click;
+                property<length> prev_mouse_x;
+                property<length> prev_mouse_y;
+                property<length> view_x;
+                property<length> view_y;
+                property<length> view_w: plane_view.width * 1px;
+                property<length> view_h: plane_view.height * 1px;
+
+                plane-image := Image {
+                    vertical-alignment: top;
+                    source: plane_view;
+                    image-fit: cover;
+                    image-rendering: pixelated;
+                    x: plane-area.view_x;
+                    y: plane-area.view_y;
+                    width: plane-area.view_w * parent.zoom;
+                    height: plane-area.view_h * parent.zoom;
+                    //transform-scale: parent.zoom;
+                    //transform-origin: {x: parent.scroll_mouse_x, y: parent.scroll_mouse_y};
+                    //transform-origin: {x:0,y:0};
+                }
+
+
+                moved => {
+                    // Do stuff with new mouse
+
+                    // Transform Image X & Y
+                    if self.middle_click && self.prev_mouse_x != -1px && self.prev_mouse_y != -1px {
+                        self.view_x += (self.mouse-x - self.prev_mouse_x);
+                        self.view_y += (self.mouse-y - self.prev_mouse_y);
+                    }
+
+                    debug(self.view_x, self.view_y);
+
+                    self.prev_mouse_x = self.mouse-x;
+                    self.prev_mouse_y = self.mouse-y;
+                }
+                scroll-event(event) => {
+                    let scale_amount = (event.delta-y / 600px);
+                    let scale = (self.zoom + scale_amount) / self.zoom;
+                    self.zoom = self.zoom + scale_amount;
+
+
+                    debug(scale);
+
+                    self.view_x = self.mouse-x - (self.mouse-x - self.view_x) * scale;
+                    self.view_y = self.mouse-y - (self.mouse-y - self.view_y) * scale;
+
+                    accept
+                }
+                pointer-event(event) => {
+                    if event.kind == down {
+                        if event.button == PointerEventButton.middle {
+                            debug("press");
+                            self.middle_click = true;
+                            self.prev_mouse_x = -1px;
+                            self.prev_mouse_y = -1px;
+                        }
+                    } else if event.kind == up {
+                        if event.button == PointerEventButton.middle {
+                            debug("release");
+                            self.middle_click = false;
+                        }
+                    }
+                }
             }
         }
 
+        //Button {
+        //    text: "plane editor";
+        //}
+
+
+
         VerticalBox {
+            padding-bottom: 0px;
             padding-top: 0px;
             width: 15%;
             Button {
