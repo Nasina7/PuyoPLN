@@ -11,9 +11,12 @@ export component AppWindow inherits Window {
     min-height: 300px;
 
     in property <image> plane_view;
+    in property <image> plane_background;
 
     callback display_about_slint();
-    callback load_project() -> bool;
+    callback load_project(string) -> bool;
+    callback open_project_dialog() -> string;
+    callback place_tile(int, int, int);
 
     MenuBar {
         Menu {
@@ -21,9 +24,12 @@ export component AppWindow inherits Window {
             MenuItem {
                 title: @tr("Load Project");
                 activated => {
-                    if !root.load_project() {
-                        // TODO: This should be a popup.
-                        debug("Load failed");
+                    let project = root.open_project_dialog();
+                    if project != "" {
+                        if !root.load_project(project) {
+                            // TODO: This should be a popup.
+                            debug("Load failed");
+                        }
                     }
                 };
             }
@@ -79,6 +85,7 @@ export component AppWindow inherits Window {
 
         Rectangle {
             clip: true;
+            background: darkgrey;
 
             plane-area := TouchArea {
                 property<float> zoom: 1.0;
@@ -97,11 +104,59 @@ export component AppWindow inherits Window {
                     image-rendering: pixelated;
                     x: plane-area.view_x;
                     y: plane-area.view_y;
-                    width: plane-area.view_w * parent.zoom;
-                    height: plane-area.view_h * parent.zoom;
-                    //transform-scale: parent.zoom;
-                    //transform-origin: {x: parent.scroll_mouse_x, y: parent.scroll_mouse_y};
-                    //transform-origin: {x:0,y:0};
+                    width: plane-area.view_w * plane-area.zoom;
+                    height: plane-area.view_h * plane-area.zoom;
+
+                    TouchArea {
+                        property<bool> left_click;
+
+                        tile-cursor := Rectangle {
+                            background: white;
+                            opacity: 0.7;
+                            width: 8px * plane-area.zoom;
+                            height: 8px * plane-area.zoom;
+                        }
+    
+                        Timer {
+                            interval: 0.016s; // TODO: This should be tied to framerate?
+                            triggered() => {
+                                let scale_down = 8px * plane-area.zoom;
+                                let oldx = tile-cursor.x;
+                                let oldy = tile-cursor.y;
+
+                                tile-cursor.x = (parent.mouse-x - Math.mod(parent.mouse-x, tile-cursor.width));
+                                tile-cursor.y = (parent.mouse-y - Math.mod(parent.mouse-y, tile-cursor.height));
+
+                                if (oldx != tile-cursor.x || oldy != tile-cursor.y) && parent.left_click {
+                                    let x = Math.round(tile-cursor.x / scale_down);
+                                    let y = Math.round(tile-cursor.y / scale_down);
+                                    debug(x, y);
+                                    root.place_tile(8, x, y);
+                                }
+                            }
+                        }
+                        pointer-event(event) => {
+                            if event.kind == down {
+                                if event.button == PointerEventButton.left {
+                                    let scale_down = 8px * plane-area.zoom;
+                                    self.left_click = true;
+                                    let x = Math.round(tile-cursor.x / scale_down);
+                                    let y = Math.round(tile-cursor.y / scale_down);
+                                    debug(x, y);
+                                    root.place_tile(8, x, y);
+                                }
+                            } else if event.kind == up {
+                                if event.button == PointerEventButton.left {
+                                    self.left_click = false;
+                                }
+                            }
+
+                            plane-area.pointer-event(event);
+                        }
+                        moved => {
+                            plane-area.moved();
+                        }
+                    }
                 }
 
 
@@ -114,15 +169,13 @@ export component AppWindow inherits Window {
                         self.view_y += (self.mouse-y - self.prev_mouse_y);
                     }
 
-                    debug(self.view_x, self.view_y);
-
                     self.prev_mouse_x = self.mouse-x;
                     self.prev_mouse_y = self.mouse-y;
                 }
                 scroll-event(event) => {
                     let scale_amount = (event.delta-y / 600px);
-                    let scale = (self.zoom + scale_amount) / self.zoom;
-                    self.zoom = self.zoom + scale_amount;
+                    let scale = (self.zoom + self.zoom * scale_amount) / self.zoom;
+                    self.zoom = self.zoom + self.zoom * scale_amount;
 
 
                     debug(scale);
@@ -157,6 +210,8 @@ export component AppWindow inherits Window {
 
 
         VerticalBox {
+            padding-left: 0px;
+            padding-right: 0px;
             padding-bottom: 0px;
             padding-top: 0px;
             width: 15%;

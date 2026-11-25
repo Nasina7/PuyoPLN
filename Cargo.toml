@@ -6,6 +6,8 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+rfd = "0.18.0"
+rust-ini = "0.21.3"
 slint = { version = "1.18.1", features = ["renderer-skia"] }
 
 [build-dependencies]
